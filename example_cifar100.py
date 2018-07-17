@@ -5,7 +5,10 @@ import matplotlib.pyplot as plt
 import pickle
 import os
 import numpy as np
-
+import chainer.links as L
+import Mynet
+from chainer import serializers
+import chainer
 
 # In[]
 os.getcwd()
@@ -53,3 +56,18 @@ for i in clabels:
     print(i)
 test_flabels[10]
 # Mikihiro Ikura
+
+# In[]
+def predict(model, x_data):
+    x = chainer.Variable(x_data.astype(np.float32))
+    y = model.predictor(x)
+    return np.argmax(y.data, axis = 1)
+
+# In[]
+model = L.Classifier(Mynet.MyNet(100))
+serializers.load_npz('trained_model',model)
+a,b = test[40]
+plt.imshow(a.transpose(1,2,0))
+print('predicted_label:', flabels[b])
+# In[]
+print('answer:', flabels[predict(model,a)])
