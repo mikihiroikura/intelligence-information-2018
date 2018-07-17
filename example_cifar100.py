@@ -15,7 +15,7 @@ os.getcwd()
 _, test = cifar.get_cifar100(withlabel=True)
 test
 # In[]
-x,t=test[50]
+x,t=test[10]
 t
 
 # In[]
@@ -51,3 +51,4 @@ test_data, test_clabels, test_flabels, clabels,flabels = get_cifar100(data_path)
 print(flabels[t])
 for i in clabels:
     print(i)
+test_flabels[10]
