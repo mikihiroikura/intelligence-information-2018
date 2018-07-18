@@ -59,6 +59,7 @@ test_flabels[10]
 
 # In[]
 def predict(model, x_data):
+    x_data = np.reshape(x_data,(1,3,32,32))
     x = chainer.Variable(x_data.astype(np.float32))
     y = model.predictor(x)
     return np.argmax(y.data, axis = 1)
@@ -66,8 +67,10 @@ def predict(model, x_data):
 # In[]
 model = L.Classifier(Mynet.MyNet(100))
 serializers.load_npz('trained_model',model)
-a,b = test[40]
+a,b = test[10]
 plt.imshow(a.transpose(1,2,0))
 print('predicted_label:', flabels[b])
 # In[]
-print('answer:', flabels[predict(model,a)])
+ans = predict(model,a)
+for u in ans:
+    print('answer:', flabels[u])

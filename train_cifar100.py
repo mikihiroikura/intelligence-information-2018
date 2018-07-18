@@ -40,7 +40,7 @@ def main():
     class_labels = 100
     train ,test = get_cifar100()
     # model = L.Classifier(VGG16Net.VGG16Net(class_labels))
-    model = L.Classifier(Mynet.MyNet(class_labels))
+    model = L.Classifier(VGG16Net.VGG16Net(class_labels))
     #GPUのセットアップ
     if args.gpu >= 0:
         # Make a specified GPU current
