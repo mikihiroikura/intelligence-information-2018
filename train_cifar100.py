@@ -9,9 +9,10 @@ from chainer.training import extensions
 from chainer.training import triggers
 from chainer.datasets import get_cifar100
 from chainer import serializers
+from chainer.datasets import split_dataset_random
 
 # In[]
-import VGG16Net
+import VGG_chainer
 import Mynet
 
 def main():
@@ -38,9 +39,11 @@ def main():
 
     # In[]
     class_labels = 100
-    train ,test = get_cifar100()
+    train_val, test = get_cifar100()
+    train_size = int(len(train_val) * 0.9)
+    train, valid = split_dataset_random(train_val, train_size, seed=0)
     # model = L.Classifier(VGG16Net.VGG16Net(class_labels))
-    model = L.Classifier(VGG16Net.VGG16Net(class_labels))
+    model = L.Classifier(VGG_chainer.VGG(class_labels))
     #GPUのセットアップ
     if args.gpu >= 0:
         # Make a specified GPU current
@@ -52,14 +55,14 @@ def main():
 
     # In[]
     train_iter = chainer.iterators.SerialIterator(train, args.batchsize)
-    test_iter = chainer.iterators.SerialIterator(test, args.batchsize,
+    valid_iter = chainer.iterators.SerialIterator(valid, args.batchsize,
                                                  repeat=False, shuffle=False)
     stop_trigger = (args.epoch,'epoch')
     updater = training.updaters.StandardUpdater(train_iter,optimizer,device=args.gpu)
     trainer = training.Trainer(updater,stop_trigger,out=args.out)
 
     # Evaluate the model with the test dataset for each epoch
-    trainer.extend(extensions.Evaluator(test_iter, model, device=args.gpu))
+    trainer.extend(extensions.Evaluator(valid_iter, model, device=args.gpu))
     # Dump a computational graph from 'loss' variable at the first iteration
     # The "main" refers to the target link of the "main" optimizer.
     trainer.extend(extensions.dump_graph('main/loss'))
