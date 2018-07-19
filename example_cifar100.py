@@ -9,6 +9,7 @@ import chainer.links as L
 import Mynet
 from chainer import serializers
 import chainer
+import VGG_chainer
 
 # In[]
 os.getcwd()
@@ -60,17 +61,30 @@ test_flabels[10]
 # In[]
 def predict(model, x_data):
     x_data = np.reshape(x_data,(1,3,32,32))
-    x = chainer.Variable(x_data.astype(np.float32))
-    y = model.predictor(x)
+    #x = chainer.Variable(x_data.astype(np.float32))
+    y = model.predictor(x_data)
     return np.argmax(y.data, axis = 1)
 
 # In[]
-model = L.Classifier(Mynet.MyNet(100))
+#model = L.Classifier(Mynet.MyNet(100))
+model = L.Classifier(VGG_chainer.VGG(100))
 serializers.load_npz('trained_model',model)
-a,b = test[10]
+a,b = test[30]
 plt.imshow(a.transpose(1,2,0))
 print('predicted_label:', flabels[b])
 # In[]
-ans = predict(model,a)
-for u in ans:
-    print('answer:', flabels[u])
+for i in range(1000):
+    a,b= test[i]
+    ans = predict(model,a)
+    plt.imshow(a.transpose(1,2,0))
+    
+    for u in ans:
+        if u==b:
+            print('photo num: ', i)
+            print("correct!!")
+            print('predicted_label:', flabels[b])
+            print('answer:', flabels[u])
+            
+# In[]
+c,d =test[730]
+plt.imshow(c.transpose(1,2,0))
