@@ -10,21 +10,24 @@ import Mynet
 from chainer import serializers
 import chainer
 import VGG_chainer
+import cv2 as cv
 
 # In[]
 os.getcwd()
 os.chdir('C:/Users/mikiu/Desktop/det_rec_mov_obj')
 os.getcwd()
 # In[]
-_, test = cifar.get_cifar100(withlabel=True)
+train, test = cifar.get_cifar100(withlabel=True)
 test
 # In[]
 x,t=test[10]
 t
-
+# In[]
+z,w = train[10]
+w
 # In[]
 plt.imshow(x.transpose(1,2,0))
-
+plt.imshow(z.transpose(1,2,0))
 # In[]
 def unpickle(file):
     # file.decode('utf-8')
@@ -61,9 +64,12 @@ test_flabels[10]
 # In[]
 def predict(model, x_data):
     x_data = np.reshape(x_data,(1,3,32,32))
+    if(x_data!='float32'):
+        x_data = x_data.astype(np.float32)
+        x_data = x_data/256
     #x = chainer.Variable(x_data.astype(np.float32))
     y = model.predictor(x_data)
-    return np.argmax(y.data, axis = 1)
+    return np.argmax(y.data, axis = 1), np.max(y.data, axis = 1)
 
 # In[]
 #model = L.Classifier(Mynet.MyNet(100))
@@ -72,19 +78,46 @@ serializers.load_npz('trained_model',model)
 a,b = test[30]
 plt.imshow(a.transpose(1,2,0))
 print('predicted_label:', flabels[b])
+ans,score = predict(model,a)
+print("score: ",score)
+print("answer: ",ans)
+flabels[ans[0]]
 # In[]
-for i in range(1000):
-    a,b= test[i]
-    ans = predict(model,a)
-    plt.imshow(a.transpose(1,2,0))
-    
+cnt = 0
+for i in range(10000):
+    a,b= train[i]
+    ans,score = predict(model,a)
+
     for u in ans:
         if u==b:
             print('photo num: ', i)
             print("correct!!")
-            print('predicted_label:', flabels[b])
-            print('answer:', flabels[u])
+            cnt = cnt+1
+print("correct cnt: ", cnt)
+            
             
 # In[]
 c,d =test[730]
 plt.imshow(c.transpose(1,2,0))
+
+# In[]
+img = cv.imread('walker.jpg')
+img = cv.cvtColor(img,cv.COLOR_BGR2RGB)
+img = cv.resize(img,(32,32))
+plt.imshow(img)
+cv.waitKey(0)
+cv.destroyAllWindows()
+
+# In[]
+img_trans = img.transpose(2,0,1)
+plt.imshow(img_trans.transpose(1,2,0))
+cv.waitKey(0)
+cv.destroyAllWindows()
+
+# In[]
+ans,score,y = predict(model,img_trans)
+print("answer: ",ans)
+print("score: ",score)
+
+# In[]
+a,b = test[30]

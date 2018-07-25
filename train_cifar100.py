@@ -4,17 +4,94 @@ import argparse
 import chainer
 import chainer.links as L
 
+import os
+import numpy
+
+
 from chainer import training
 from chainer.training import extensions
-from chainer.training import triggers
+#from chainer.training import triggers
 from chainer.datasets import get_cifar100
+from chainer.datasets import get_cifar10
+from chainer.datasets import tuple_dataset
 from chainer import serializers
 from chainer.datasets import split_dataset_random
+from PIL import Image
+
+import VGG_chainer
+#import Mynet
 
 # In[]
-import VGG_chainer
-import Mynet
-
+#datasetの作成関数
+#bicycle:0 motorcycle:1 automobile:2 train:3 person:4
+#cifar10 →　automobile
+#cifar100 → bicycle motorcycle train
+#person →　/dataset/PedCut2013_SegmentationDataset
+def make_datasets():
+    Images = []#3*32*32
+    Nums = []
+    Images_test = []#3*32*32
+    Nums_test = []
+    cf100_train , cf100_test = get_cifar100()
+    cf10_train, cf10_test = get_cifar10()
+    #cifar100のリストへの保存
+    for i in cf100_train:
+        if(i[1]==8 or i[1]==48 or i[1]==90):#bicycle 8,motorcycle 48, train 90
+            Images.append(i[0])
+            if(i[1]==8):
+                Nums.append(0)
+            elif(i[1]==48):
+                Nums.append(1)
+            else:
+                Nums.append(2)
+    for j in cf100_test:
+        if(j[1]==8 or j[1]==48 or j[1]==90):
+            Images_test.append(j[0])
+            if(j[1]==8):
+                Nums_test.append(0)
+            elif(j[1]==48):
+                Nums_test.append(1)
+            else:
+                Nums_test.append(2)
+    for k in cf10_train:
+        if(k[1]==1):#automobile
+            Images.append(k[0])
+            Nums.append(3)
+        if(len(Images)==2000):
+            break
+    for k in cf10_test:
+        if(k[1]==1):#automobile
+            Images_test.append(k[0])
+            Nums_test.append(3)
+        if(len(Images_test)==400):
+            break
+    data_dir_path = u"./dataset/PedCut2013_SegmentationDataset/data/completeData/left_images/"
+    file_list = os.listdir(r'./dataset/PedCut2013_SegmentationDataset/data/completeData/left_images/')
+    for file_name in file_list:
+        root, ext = os.path.splitext(file_name)
+        if ext == u'.png' or u'.jpeg' or u'.jpg':
+            abs_name = data_dir_path + '/' + file_name
+            im = Image.open(abs_name)
+            im = im.resize((32,32))
+            imarray = numpy.asarray(im)
+            Images.append(imarray.transpose(2,0,1).astype(numpy.float32)/256)
+            Nums.append(4)
+        if(len(Images)==2500):
+            break
+    for i in range(500,600):
+        file_name = file_list[i]
+        root, ext = os.path.splitext(file_name)
+        if ext == u'.png' or u'.jpeg' or u'.jpg':
+            abs_name = data_dir_path + '/' + file_name
+            im = Image.open(abs_name)
+            im = im.resize((32,32))
+            imarray = numpy.asarray(im)
+            Images_test.append(imarray.transpose(2,0,1).astype(numpy.float32)/256)
+            Nums_test.append(4)
+    trains = tuple_dataset.TupleDataset(Images,Nums)
+    tests = tuple_dataset.TupleDataset(Images_test,Nums_test)
+    return trains,tests
+# In[]
 def main():
     parser = argparse.ArgumentParser(description='Chainer CIFAR example:')
     parser.add_argument('--batchsize', '-b', type=int, default=64,
@@ -38,11 +115,11 @@ def main():
     # iteration, which will be used by the PrintReport extension below.
 
     # In[]
-    class_labels = 100
-    train_val, test = get_cifar100()
+    class_labels = 5
+    train_val ,test= make_datasets() 
+    # model = L.Classifier(VGG16Net.VGG16Net(class_labels))
     train_size = int(len(train_val) * 0.9)
     train, valid = split_dataset_random(train_val, train_size, seed=0)
-    # model = L.Classifier(VGG16Net.VGG16Net(class_labels))
     model = L.Classifier(VGG_chainer.VGG(class_labels))
     #GPUのセットアップ
     if args.gpu >= 0:
@@ -50,8 +127,8 @@ def main():
         chainer.backends.cuda.get_device_from_id(args.gpu).use()
         model.to_gpu()  # Copy the model to the GPU
 
-    optimizer = chainer.optimizers.Adam()
-    optimizer.setup(model)
+    optimizer = chainer.optimizers.MomentumSGD(lr=args.learnrate).setup(model)
+    optimizer.add_hook(chainer.optimizer.WeightDecay(0.0005))
 
     # In[]
     train_iter = chainer.iterators.SerialIterator(train, args.batchsize)
@@ -73,6 +150,8 @@ def main():
          'main/accuracy', 'validation/main/accuracy', 'elapsed_time']))
     # Print a progress bar to stdout
     trainer.extend(extensions.ProgressBar())
+    trainer.extend(extensions.PlotReport(['main/loss', 'val/main/loss'], x_key='epoch', file_name='loss.png'))
+    trainer.extend(extensions.PlotReport(['main/accuracy', 'val/main/accuracy'], x_key='epoch', file_name='accuracy.png'))
 
     # In[]
     trainer.run()
