@@ -158,6 +158,11 @@ def main():
 
     # In[]
     serializers.save_npz('trained_model',model)
-
+    # In[]
+    test_iter = chainer.iterators.MultiprocessIterator(test, args.batch_size, False, False)
+    test_evaluator = extensions.Evaluator(test_iter, model, device=args.gpu)
+    results = test_evaluator()
+    print('Test accuracy:', results['main/accuracy'])
+# In[]
 if __name__ == '__main__':
     main()

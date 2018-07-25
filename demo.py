@@ -101,18 +101,21 @@ def main():
     args = parser.parse_args()
     if args.pretrained_model == 'trained_model':
         #model = L.Classifier(Mynet.MyNet(100))
-        model = L.Classifier(VGG_chainer.VGG(100))
+        model = L.Classifier(VGG_chainer.VGG(5))
         serializers.load_npz('trained_model',model)
         print('VGG is defined')
     else:
         model = FasterRCNNVGG16(
             n_fg_class=len(voc_bbox_label_names),
             pretrained_model=args.pretrained_model)
+    if args.gpu >= 0:
+        model.to_gpu(args.gpu)
 #    model = L.Classifier(VGG_chainer.VGG(100))
 #    serializers.load_npz('trained_model',model) 
 #    print('VGG is defined')
-    data_path = "./cifar-100-python"
-    test_data, test_clabels, test_flabels, clabels,flabels = get_cifar100(data_path)
+#    data_path = "./cifar-100-python"
+#    test_data, test_clabels, test_flabels, clabels,flabels = get_cifar100(data_path)
+    flabels = ['bicycle','motorcycle','train','automobile','person']
     diff_frame(args.video,model,flabels)
 
 
