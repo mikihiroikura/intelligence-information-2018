@@ -40,14 +40,20 @@ def get_cifar100(folder):
 def to_matplotlib_format(img):
     return cv.cvtColor(img, cv.COLOR_BGR2RGB)
 
+#引数：1．CPU学習モデル　２．Matplotlib用のnumpy.ndarray uint8
 def predict(model, x_data):
-    x_data = np.reshape(x_data,(1,3,32,32))
-    if(x_data.dtype!='float32'):
-        x_data = x_data.astype(np.float32)
-        x_data = x_data/256
+    pilImg = Image.fromarray(numpy.uint8(x_data))#PIL dataに変換
+    img_resize = pilImg.resize((32, 32))#画像サイズ変換32*32*3
+    imgArray = numpy.asarray(img_resize)#numpy ndarrayに変換
+    imgArray2 = imgArray.astype(np.float32)/256#float32の配列に変換 256で割る
+    img_re = np.reshape(imgArray2,(1,3,32,32))#学習データ用に変換する1*3*32*32
+    img_cuda = model.xp.asarray(img_re)#
     #x = chainer.Variable(x_data.astype(np.float32))
-    y = model.predictor(x_data)
-    return np.argmax(y.data, axis = 1), np.max(y.data, axis = 1)
+    with chainer.using_config('train', False), chainer.using_config('enable_backprop', False):
+        Y = model.predictor(img_cuda)
+    y = Y.array
+    pred_label = y.argmax(axis=1)
+    return pred_label, np.max(y.data, axis = 1)
 
 def diff_frame(video,model,flabels):
     fgbg = cv.createBackgroundSubtractorKNN()
@@ -70,7 +76,7 @@ def diff_frame(video,model,flabels):
         #img_coutor = cv.drawContours(frame, contours, -1, (255,0,0), 3)#全コンタを青で描く
         img_rect = frame3
         #cv.imshow('contours',img_coutor)
-        detected = []
+
         for c in contours:
             if cv.contourArea(c) < 200:
                 continue
@@ -82,10 +88,8 @@ def diff_frame(video,model,flabels):
             # crops.append(cropped)
             # draw contour
             part = frame2[y:(y+h),x:(x+w)]
-            detected.append(part)
             img_rect = cv.rectangle(img_rect, (x, y), (x + w, y + h), (0, 255, 0), 3)  #rectangle contour
-            part = cv.resize(part,(32,32))
-            part = to_matplotlib_format(part)
+
             ans, val = predict(model,part)
             cv.putText(img_rect,flabels[ans[0]],(x-5,y-5),font,1,(255,255,0))
         cv.imshow('rectangle',img_rect)
@@ -99,10 +103,10 @@ def main():
     parser.add_argument('--pretrained-model',default='voc07')
     parser.add_argument('video')
     args = parser.parse_args()
-    if args.pretrained_model == 'trained_model':
+    if args.pretrained_model == 'trained_model_cpu':
         #model = L.Classifier(Mynet.MyNet(100))
         model = L.Classifier(VGG_chainer.VGG(5))
-        serializers.load_npz('trained_model',model)
+        serializers.load_npz('trained_model_cpu',model)
         print('VGG is defined')
     else:
         model = FasterRCNNVGG16(
@@ -110,6 +114,10 @@ def main():
             pretrained_model=args.pretrained_model)
     if args.gpu >= 0:
         model.to_gpu(args.gpu)
+        print('gpu is defined')
+    else:
+        model.to_cpu()
+        print('cpu is defined')
 #    model = L.Classifier(VGG_chainer.VGG(100))
 #    serializers.load_npz('trained_model',model) 
 #    print('VGG is defined')
