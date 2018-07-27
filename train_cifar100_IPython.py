@@ -48,35 +48,49 @@ def make_datasets():
     for i in cf100_train:
         if(i[1]==8 or i[1]==48 or i[1]==90):#bicycle 8,motorcycle 48, train 90
             Images.append(i[0])
+            itrans = i[0][:,:,::-1]
+            Images.append(itrans)
             if(i[1]==8):
+                Nums.append(0)
                 Nums.append(0)
             elif(i[1]==48):
                 Nums.append(1)
+                Nums.append(1)
             else:
+                Nums.append(2)
                 Nums.append(2)
     for j in cf100_test:
         if(j[1]==8 or j[1]==48 or j[1]==90):
             Images_test.append(j[0])
+            jtrans = j[0][:,:,::-1]
+            Images_test.append(jtrans)
             if(j[1]==8):
+                Nums_test.append(0)
                 Nums_test.append(0)
             elif(j[1]==48):
                 Nums_test.append(1)
+                Nums_test.append(1)
             else:
+                Nums_test.append(2)
                 Nums_test.append(2)
     for k in cf10_train:
         if(k[1]==1):#automobile
             Images.append(k[0])
+            Images.append(k[0][:,:,::-1])
             Nums.append(3)
-        if(len(Images)==2000):
+            Nums.append(3)
+        if(len(Images)==2000*2):
             break
     for k in cf10_test:
         if(k[1]==1):#automobile
             Images_test.append(k[0])
+            Images_test.append(k[0][:,:,::-1])
             Nums_test.append(3)
-        if(len(Images_test)==400):
-            break
-    data_dir_path = u"./dataset/PedCut2013_SegmentationDataset/data/completeData/left_images/"
-    file_list = os.listdir(r'./dataset/PedCut2013_SegmentationDataset/data/completeData/left_images/')
+            Nums_test.append(3)
+            if(len(Images_test)==400*2):
+                break
+    data_dir_path = u"./dataset/from_vtest/"
+    file_list = os.listdir(r'./dataset/from_vtest/')
     for file_name in file_list:
         root, ext = os.path.splitext(file_name)
         if ext == u'.png' or u'.jpeg' or u'.jpg':
@@ -85,10 +99,14 @@ def make_datasets():
             im = im.resize((32,32))
             imarray = numpy.asarray(im)
             Images.append(imarray.transpose(2,0,1).astype(numpy.float32)/256)
+            s = imarray.transpose(2,0,1).astype(numpy.float32)/256
+            strans = s[:,:,::-1]
+            Images.append(strans)            
             Nums.append(4)
-        if(len(Images)==2500):
+            Nums.append(4)
+        if(len(Images)==2500*2+2000):
             break
-    for i in range(500,600):
+    for i in range(3000,3200):
         file_name = file_list[i]
         root, ext = os.path.splitext(file_name)
         if ext == u'.png' or u'.jpeg' or u'.jpg':
@@ -97,35 +115,18 @@ def make_datasets():
             im = im.resize((32,32))
             imarray = numpy.asarray(im)
             Images_test.append(imarray.transpose(2,0,1).astype(numpy.float32)/256)
+            t = imarray.transpose(2,0,1).astype(numpy.float32)/256
+            ttrans = t[:,:,::-1]
+            Images_test.append(ttrans)
+            Nums_test.append(4)
             Nums_test.append(4)
     trains = tuple_dataset.TupleDataset(Images,Nums)
     tests = tuple_dataset.TupleDataset(Images_test,Nums_test)
     return trains,tests
 
-# In[]
-#parser = argparse.ArgumentParser(description='Chainer CIFAR example:')
-#parser.add_argument('--batchsize', '-b', type=int, default=64,
-#                    help='Number of images in each mini-batch')
-#parser.add_argument('--learnrate', '-l', type=float, default=0.05,
-#                    help='Learning rate for SGD')
-#parser.add_argument('--epoch', '-e', type=int, default=300,
-#                    help='Number of sweeps over the dataset to train')
-#parser.add_argument('--gpu', '-g', type=int, default=-1,
-#                    help='GPU ID (negative value indicates CPU)')
-#parser.add_argument('--out', '-o', default='result',
-#                    help='Directory to output the result')
-#parser.add_argument('--resume', '-r', default='',
-#                    help='Resume the training from snapshot')
-#parser.add_argument('--early-stopping', type=str,
-#                    help='Metric to watch for early stopping')
-#args = parser.parse_args()
-
-# Set up a neural network to train.
-# Classifier reports softmax cross entropy loss and accuracy at every
-# iteration, which will be used by the PrintReport extension below.
 
 # In[]
-batchsize = 64
+batchsize = 256
 learnrate = 0.05
 epoch = 300
 gpu = 0
@@ -136,7 +137,7 @@ resume = ''
 class_labels = 5
 train_val ,test= make_datasets() 
 # model = L.Classifier(VGG16Net.VGG16Net(class_labels))
-train_size = int(len(train_val) * 0.9)
+train_size = int(len(train_val) * 0.9)  
 train, valid = split_dataset_random(train_val, train_size, seed=0)
 model = L.Classifier(VGG_chainer.VGG(class_labels))
 #GPUのセットアップ
@@ -177,7 +178,7 @@ trainer.run()
 
 # In[]
 model.to_cpu()
-serializers.save_npz('trained_model_cpu',model)
+serializers.save_npz('trained_model_cpu4',model)
 
 # In[]
 model = L.Classifier(VGG_chainer.VGG(5))
@@ -227,7 +228,7 @@ pred_label = y.argmax(axis=1)
 print('ネットワークの予測:', pred_label[0])
 # In[]
 model = L.Classifier(VGG_chainer.VGG(5))
-serializers.load_npz('trained_model_cpu',model)
+serializers.load_npz('trained_model_cpu4',model)
 
 # In[]
 #gpu_id = 0  # CPUで計算をしたい場合は、-1を指定してください
@@ -236,7 +237,7 @@ serializers.load_npz('trained_model_cpu',model)
 #    model.to_gpu(gpu_id)
 model.to_cpu()
 cnt = 0
-cnt_num = 500
+cnt_num = 1000
 # 1つ目のテストデータを取り出します
 for i in range(cnt_num):
     x, t = test[i]  #  tは使わない

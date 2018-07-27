@@ -1,128 +1,99 @@
 import argparse
-import matplotlib.pyplot as plt
+
 
 import chainer
 import cv2 as cv
 import numpy as np
-import os
-import pickle
-
-from chainercv.datasets import voc_bbox_label_names
-from chainercv.links import FasterRCNNVGG16
-from chainercv import utils
-from chainercv.visualizations import vis_bbox
 from chainer import serializers
 import chainer.links as L
+from PIL import Image
 
-import Mynet
 import VGG_chainer
-
-def unpickle(file):
-    # file.decode('utf-8')
-    fo = open(file, 'rb')
-    # fo.decode('utf-8')
-    dict = pickle.load(fo,encoding="latin1")
-    fo.close()
-    return dict
-
-def get_cifar100(folder):
-    test_fname  = os.path.join(folder,'test')
-    data_dict = unpickle(test_fname)
-    test_data = data_dict['data']
-    test_fine_labels = data_dict['fine_labels']
-    test_coarse_labels = data_dict['coarse_labels']
-
-    bm = unpickle(os.path.join(folder, 'meta'))
-    clabel_names = bm['coarse_label_names']
-    flabel_names = bm['fine_label_names']
-    return test_data, np.array(test_coarse_labels), np.array(test_fine_labels), clabel_names, flabel_names
 
 def to_matplotlib_format(img):
     return cv.cvtColor(img, cv.COLOR_BGR2RGB)
 
+#CNNモデルでの学習結果出力関数
 #引数：1．CPU学習モデル　２．Matplotlib用のnumpy.ndarray uint8
+#戻り値：argmax(y),max(y) y:CNNでの出力ベクトル
 def predict(model, x_data):
-    pilImg = Image.fromarray(numpy.uint8(x_data))#PIL dataに変換
+    pilImg = Image.fromarray(np.uint8(x_data))#PIL dataに変換
     img_resize = pilImg.resize((32, 32))#画像サイズ変換32*32*3
-    imgArray = numpy.asarray(img_resize)#numpy ndarrayに変換
+    imgArray = np.asarray(img_resize)#numpy ndarrayに変換
     imgArray2 = imgArray.astype(np.float32)/256#float32の配列に変換 256で割る
     img_re = np.reshape(imgArray2,(1,3,32,32))#学習データ用に変換する1*3*32*32
     img_cuda = model.xp.asarray(img_re)#
-    #x = chainer.Variable(x_data.astype(np.float32))
     with chainer.using_config('train', False), chainer.using_config('enable_backprop', False):
         Y = model.predictor(img_cuda)
     y = Y.array
     pred_label = y.argmax(axis=1)
     return pred_label, np.max(y.data, axis = 1)
 
+#動画からの移動体検知関数
+#引数：1，動画　2，検出結果のラベルリスト
 def diff_frame(video,model,flabels):
     fgbg = cv.createBackgroundSubtractorKNN()
     cap = cv.VideoCapture(video)
     
     font = cv.FONT_HERSHEY_PLAIN
 
-    while(1):
+    ret, frame = cap.read()#OpenCVでの移動体検知用Frame
+    while(ret==True):
         #動画からフレーム取得
-        ret, frame = cap.read()
-        frame2 = to_matplotlib_format(frame)
-        frame3 = frame
-        #胴体検知のマスクをかける
+        
+        frame2 = to_matplotlib_format(frame)#opencv→matplotlib 学習機への入力用
+        frame3 = frame#学習結果の出力用
+        
+        #動体検知のマスクをかける
         fgmask = fgbg.apply(frame)
         fgmask = cv.GaussianBlur(fgmask,(17,17),0)#GaussianBlurをかけることで，細かいコンタ成分を消すことができる
         ret,thresh = cv.threshold(fgmask,127,255,cv.THRESH_BINARY)#閾値を入れることで，2値化する
         cv.imshow('thresh',thresh)
+        
         #contourを検出する
         image, contours, hierarchy = cv.findContours(thresh,cv.RETR_TREE,cv.CHAIN_APPROX_SIMPLE)
-        #img_coutor = cv.drawContours(frame, contours, -1, (255,0,0), 3)#全コンタを青で描く
         img_rect = frame3
-        #cv.imshow('contours',img_coutor)
 
+        #１フレーム上の検出したContourで識別処理
         for c in contours:
-            if cv.contourArea(c) < 200:
+            if cv.contourArea(c) < 200:#Contour内の面積が小さすぎるものを排除する
                 continue
-            # rectangle area
+            # rectangle area　で区切る
             x, y, w, h = cv.boundingRect(c)
-            # crop the image
-            # cropped = forcrop[y:(y + h), x:(x + w)]
-            # cropped = resize_image(cropped, (210, 210))
-            # crops.append(cropped)
-            # draw contour
-            part = frame2[y:(y+h),x:(x+w)]
-            img_rect = cv.rectangle(img_rect, (x, y), (x + w, y + h), (0, 255, 0), 3)  #rectangle contour
+            part = frame2[y:(y+h),x:(x+w)]#学習機への入力用に区切ったnumpy.ndarrray配列を保存する
+            img_rect = cv.rectangle(img_rect, (x, y), (x + w, y + h), (0, 255, 0), 3)  #rectangle contourを描く
 
-            ans, val = predict(model,part)
-            cv.putText(img_rect,flabels[ans[0]],(x-5,y-5),font,1,(255,255,0))
-        cv.imshow('rectangle',img_rect)
+            ans, val = predict(model,part)#学習機での予測結果の出力
+            cv.putText(img_rect,flabels[ans[0]],(x-5,y-5),font,1,(255,255,0))#予測結果を画像に描く
+        cv.imshow('rectangle',img_rect)#表示
+        
+        ret, frame = cap.read()#OpenCVでの移動体検知用Frame
         if cv.waitKey(1) & 0xFF == ord('q'):
             break
+    cap.release()
     cv.destroyAllWindows()
-           
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--gpu',type=int, default=-1)
-    parser.add_argument('--pretrained-model',default='voc07')
+    parser.add_argument('--pretrained-model',default='trained_model_cpu3')
     parser.add_argument('video')
     args = parser.parse_args()
-    if args.pretrained_model == 'trained_model_cpu':
+    if args.pretrained_model == 'trained_model_cpu3':
         #model = L.Classifier(Mynet.MyNet(100))
         model = L.Classifier(VGG_chainer.VGG(5))
-        serializers.load_npz('trained_model_cpu',model)
+        serializers.load_npz('trained_model_cpu3',model)
         print('VGG is defined')
     else:
-        model = FasterRCNNVGG16(
-            n_fg_class=len(voc_bbox_label_names),
-            pretrained_model=args.pretrained_model)
+        print('error!! model should be changed.')
+        exit()
     if args.gpu >= 0:
         model.to_gpu(args.gpu)
         print('gpu is defined')
     else:
         model.to_cpu()
         print('cpu is defined')
-#    model = L.Classifier(VGG_chainer.VGG(100))
-#    serializers.load_npz('trained_model',model) 
-#    print('VGG is defined')
-#    data_path = "./cifar-100-python"
-#    test_data, test_clabels, test_flabels, clabels,flabels = get_cifar100(data_path)
     flabels = ['bicycle','motorcycle','train','automobile','person']
     diff_frame(args.video,model,flabels)
 
